@@ -1,0 +1,747 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dead Rails Cycle Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Global box-sizing for consistent layout */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        /* Ensure body takes full viewport height and allows internal flexbox to manage height */
+        body {
+            min-height: 100vh;
+            height: 100vh; /* Explicitly set height to 100% of viewport height */
+            margin: 0; /* Remove default body margin */
+            display: flex; /* Make body a flex container */
+            flex-direction: column; /* Arrange children vertically */
+            justify-content: center; /* Center content vertically */
+            align-items: center; /* Center content horizontally */
+            padding: 0.5rem; /* Reduced padding around the main console for more space */
+        }
+
+        /* Custom checkbox styling */
+        input[type="checkbox"] {
+            /* For custom appearance */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            border-radius: 0.25rem; /* rounded-md */
+            border-width: 1px;
+            border-color: var(--border-color); /* border-border-color */
+            background-color: rgba(0, 0, 0, 0.3); /* bg-black/30 */
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        input[type="checkbox"]:checked {
+            background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        /* Specific styles for checked state based on accent colors */
+        input[type="checkbox"]#notifyDayStart:checked,
+        input[type="checkbox"]#alertSound:checked,
+        input[type="checkbox"]#alertVibrate:checked,
+        input[type="checkbox"]#alertPopup:checked {
+            background-color: var(--accent-day); /* accent-day */
+            border-color: transparent;
+        }
+
+        input[type="checkbox"]#notifyNightStart:checked {
+            background-color: var(--accent-night); /* accent-night */
+            border-color: transparent;
+        }
+    </style>
+    <script>
+        // Tailwind CSS configuration to include Inter font and custom colors
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        mono: ['Consolas', 'Roboto Mono', 'monospace'], // For digital displays
+                    },
+                    colors: {
+                        'bg-outer': '#121212',
+                        'bg-inner-day': '#2A2A2A',
+                        'bg-inner-night': '#1A202A',
+                        'border-color': '#4A4A4A',
+                        'text-primary': '#F0F0F0',
+                        'text-secondary': '#A0A0A0',
+                        'accent-day': '#E6B800', // Amber/Gold
+                        'accent-night': '#00AAFF', // Electric Blue
+                        'glow-day': 'rgba(230, 184, 0, 0.5)',
+                        'glow-night': 'rgba(0, 170, 255, 0.5)',
+                        'separator': '#3A3A3A',
+                        'button-bg': '#333333',
+                        'button-hover': '#4A4A4A',
+                        'button-active': '#222222',
+                        'reminder-bg-day': 'rgba(230, 184, 0, 0.1)',
+                        'reminder-bg-night': 'rgba(0, 170, 255, 0.1)',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-bg-outer text-text-primary font-inter">
+    <div id="consoleDisplay" class="bg-bg-inner-day border-2 border-border-color rounded-xl shadow-2xl p-3 sm:p-4 md:p-5 w-full max-w-2xl text-center transition-colors duration-1000 relative flex flex-col justify-between h-full overflow-hidden">
+        made by ZIAD
+
+        <div class="flex justify-between items-center mb-2 sm:mb-3 md:mb-4">
+            <div class="flex items-center space-x-2 relative"> 
+                <div class="font-orbitron text-base sm:text-lg font-bold text-text-primary tracking-wider">DEAD RAILS TRACKER</div>
+            </div>
+            <div id="statusIndicator" class="font-inter text-xs px-2 py-1 border rounded text-red-500 border-red-500">UNSYNCED</div>
+        </div>
+
+        <div class="mb-2 sm:mb-3 md:mb-4">
+            <div class="font-inter text-xs sm:text-sm text-text-secondary uppercase tracking-wide mb-1 block">IN-GAME TIME (CALCULATED)</div>
+            <div id="inGameTime" class="font-mono text-3xl sm:text-4xl lg:text-5xl text-text-primary m-0 leading-none drop-shadow-lg shadow-white/20">00:00:00</div>
+            
+            <div class="font-inter text-xs sm:text-sm text-text-secondary uppercase tracking-wide mt-2 sm:mt-3 mb-1 block">TRAIN CAB VISUAL</div>
+            <img id="trainCabImage" src="" alt="Train Cab Visual" class="w-full h-auto object-contain mx-auto rounded-lg shadow-lg">
+        </div>
+
+        <div class="w-11/12 h-px bg-separator mx-auto my-2 sm:my-3 md:my-4 rounded-sm"></div>
+
+        <div class="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 mb-2 sm:mb-3 md:mb-4">
+            <div class="bg-black/20 border border-white/5 rounded-lg p-2 sm:p-3 shadow-inner">
+                <div class="font-inter text-xs sm:text-sm text-text-secondary">PHASE</div>
+                <div id="cyclePhase" class="font-orbitron text-base sm:text-lg font-bold transition-colors duration-500 day-accent mt-1 leading-tight">LOADING...</div>
+            </div>
+            <div class="bg-black/20 border border-white/5 rounded-lg p-2 sm:p-3 shadow-inner">
+                <div class="font-inter text-xs sm:text-sm text-text-secondary">TIME REMAINING</div>
+                <div id="timeRemaining" class="font-inter text-lg sm:text-xl text-text-primary font-bold mt-1 leading-tight">00:00</div>
+            </div>
+            <div class="bg-black/20 border border-white/5 rounded-lg p-2 sm:p-3 shadow-inner col-span-2">
+                <div class="font-inter text-xs sm:text-sm text-text-secondary">NEXT CYCLE STARTS</div>
+                <div class="next-cycle-info flex flex-col items-center">
+                    <span id="nextDayStart" class="block text-xs sm:text-sm text-text-secondary mt-1"></span>
+                    <span id="nextNightStart" class="block text-xs sm:text-sm text-text-secondary mt-1"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-11/12 h-px bg-separator mx-auto my-2 sm:my-3 md:my-4 rounded-sm"></div>
+
+        <div class="mb-2 sm:mb-3 md:mb-4">
+            <div class="font-inter text-xs sm:text-sm text-text-secondary uppercase tracking-wide mb-1">STRATEGIC REMINDER</div>
+            <div id="strategicReminder" class="font-inter text-sm sm:text-base font-bold text-accent-night bg-reminder-bg-night p-2 rounded-lg min-h-[40px] flex items-center justify-center drop-shadow-lg shadow-accent-night/40 transition-all duration-500"></div>
+        </div>
+
+        <div class="flex justify-center space-x-4 relative mt-auto">
+            <div class="inline-flex rounded-lg shadow-lg relative" role="group"> <button id="quickSyncMainButton" class="bg-accent-night text-black font-bold py-2 px-6 rounded-l-lg hover:bg-blue-500 transition-colors duration-300 active:scale-95 border-2 border-blue-700 text-sm sm:text-base">QUICK SYNC</button>
+                <div class="relative">
+                    <button id="quickSyncDropdownToggle" class="bg-accent-night text-black font-bold py-2 px-3 rounded-r-lg hover:bg-blue-500 transition-colors duration-300 active:scale-95 border-y-2 border-r-2 border-blue-700 focus:outline-none text-sm sm:text-base">
+                        &#9660; </button>
+                    <div id="quickSyncDropdownMenu" class="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg hidden z-20"> <button id="configureButton" class="block w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-gray-700 rounded-md">CONFIGURE</button>
+                    </div>
+                </div>
+            </div>
+            <button id="settingsButton" class="bg-button-bg text-text-primary border border-border-color rounded-lg px-5 py-2 font-inter text-sm sm:text-base cursor-pointer transition-all duration-300 shadow-md hover:bg-button-hover hover:translate-y-px hover:shadow-lg active:bg-button-active active:translate-y-0 active:shadow-sm sm:px-6 sm:py-3">SETTINGS</button>
+        </div>
+    </div>
+
+    <div id="quickSyncModal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden p-4">
+        <div class="bg-bg-inner-day border-2 border-border-color rounded-xl shadow-2xl p-3 sm:p-4 w-full max-w-lg text-text-primary relative max-h-[95vh]">
+            <h2 class="text-xl font-bold mb-3 sm:text-2xl">Quick Sync</h2>
+            <button id="closeQuickSyncModalButton" class="absolute top-4 right-4 text-text-secondary hover:text-text-primary text-2xl font-bold">&times;</button>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2 sm:text-xl">Game Synchronization</h3>
+                <p class="text-xs sm:text-sm text-text-secondary mb-3">
+                    Enter the <span class="font-bold text-accent-day">current</span> in-game time from your Dead Rails match to sync the tracker.
+                    You can use formats like "HH:MM", "HH AM", "HH PM", "HH:MM AM", "HH:MM PM".
+                </p>
+                <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3 mb-4">
+                    <label for="quickSyncInGameTime" class="sr-only">Current In-Game Time (HH:MM AM/PM)</label>
+                    <input type="text" id="quickSyncInGameTime" placeholder="e.g., 5 AM or 9:30 PM" 
+                           class="flex-grow bg-black/30 border border-border-color rounded-md px-3 py-2 text-text-primary font-mono text-base focus:outline-none focus:border-accent-day placeholder-text-secondary"
+                           title="Enter time in HH:MM AM/PM or HH:MM format (e.g., 08:30, 4 PM, 9:00 AM)">
+                    <button id="quickSyncModalSyncButton" class="bg-accent-day text-black font-bold py-2 px-4 rounded-lg shadow-md hover:bg-orange-500 transition-colors duration-200 active:scale-95 w-full sm:w-auto text-sm sm:text-base">SYNC</button>
+                </div>
+                <p id="quickSyncMessage" class="text-xs sm:text-sm mt-2 text-green-400"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsOverlay" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden p-4">
+        <div class="bg-bg-inner-day border-2 border-border-color rounded-xl shadow-2xl p-3 sm:p-4 w-full max-w-lg text-text-primary relative my-4 max-h-[95vh]">
+            <h2 class="text-xl font-bold mb-3 sm:text-2xl">Settings</h2>
+            
+            <button id="closeSettingsButton" class="absolute top-4 right-4 text-text-secondary hover:text-text-primary text-2xl font-bold">&times;</button>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2 sm:text-xl">Game Synchronization</h3>
+                <p class="text-xs sm:text-sm text-text-secondary mb-3">
+                    Enter the <span class="font-bold text-accent-day">current</span> in-game time from your Dead Rails match to sync the tracker.
+                    You can use formats like "HH:MM", "HH AM", "HH PM", "HH:MM AM", "HH:MM PM".
+                </p>
+                <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3 mb-4">
+                    <label for="inGameSyncTime" class="sr-only">Current In-Game Time (HH:MM AM/PM)</label>
+                    <input type="text" id="inGameSyncTime" placeholder="e.g., 5 AM or 9:30 PM" 
+                           class="flex-grow bg-black/30 border border-border-color rounded-md px-3 py-2 text-text-primary font-mono text-base focus:outline-none focus:border-accent-day placeholder-text-secondary"
+                           title="Enter time in HH:MM AM/PM or HH:MM format (e.g., 08:30, 4 PM, 9:00 AM)">
+                    <button id="syncTimeButton" class="bg-accent-day text-black font-bold py-2 px-4 rounded-lg shadow-md hover:bg-orange-500 transition-colors duration-200 active:scale-95 w-full sm:w-auto text-sm sm:text-base">SYNC</button>
+                </div>
+                <p id="syncMessage" class="text-xs sm:text-sm mt-2 text-green-400"></p>
+            </div>
+
+            <div class="w-11/12 h-px bg-separator mx-auto my-4 rounded-sm"></div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2 sm:text-xl">Notifications & Alerts</h3>
+
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label for="notifyDayStart" class="text-xs sm:text-sm cursor-pointer text-text-primary">Notify on Day Start (5:00 AM)</label>
+                        <input type="checkbox" id="notifyDayStart" class="h-4 w-4 sm:h-5 sm:w-5 text-accent-day rounded focus:ring-accent-day form-checkbox bg-black/30 border-border-color appearance-none checked:bg-accent-day checked:border-transparent transition-colors duration-200" role="switch" aria-checked="false">
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <label for="notifyNightStart" class="text-xs sm:text-sm cursor-pointer text-text-primary">Notify on Night Start (9:00 PM)</label>
+                        <input type="checkbox" id="notifyNightStart" class="h-4 w-4 sm:h-5 sm:w-5 text-accent-night rounded focus:ring-accent-night form-checkbox bg-black/30 border-border-color appearance-none checked:bg-accent-night checked:border-transparent transition-colors duration-200" role="switch" aria-checked="false">
+                    </div>
+
+                    <div>
+                        <label for="alertBeforeTime" class="block text-xs sm:text-sm mb-1 text-text-secondary">Alert me:</label>
+                        <div class="flex items-center space-x-2">
+                            <input type="number" id="alertBeforeTime" value="30" min="0" max="300" step="5"
+                                   class="w-16 sm:w-20 bg-black/30 border border-border-color rounded-md px-2 py-1 text-text-primary font-mono text-sm focus:outline-none focus:border-accent-day placeholder-text-secondary"
+                                   title="Number of seconds before a phase change to trigger the alert">
+                            <button id="applyAlertTimeButton" class="bg-button-bg text-text-primary border border-border-color rounded-lg px-3 py-1 font-inter text-xs sm:text-sm cursor-pointer transition-all duration-300 shadow-md hover:bg-button-hover active:bg-button-active">Apply</button>
+                            <span id="alertTimeMessage" class="text-xs sm:text-sm text-green-400"></span>
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-separator mt-3">
+                        <p class="text-xs sm:text-sm text-text-secondary mb-2">Notification Method:</p>
+                        <div class="flex flex-col space-y-2">
+                            <button id="testSoundButton" class="bg-button-bg text-text-primary border border-border-color rounded-lg px-3 py-2 font-inter text-xs sm:text-sm cursor-pointer transition-all duration-300 shadow-md hover:bg-button-hover active:bg-button-active">Test Sound</button>
+                            
+                            <div class="flex items-center justify-between">
+                                <label for="alertSound" class="text-xs sm:text-sm cursor-pointer text-text-primary">Play Sound</label>
+                                <input type="checkbox" id="alertSound" class="h-4 w-4 sm:h-5 sm:w-5 text-accent-day rounded focus:ring-accent-day form-checkbox bg-black/30 border-border-color appearance-none checked:bg-accent-day checked:border-transparent transition-colors duration-200" role="switch" aria-checked="false">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <label for="alertVibrate" class="text-xs sm:text-sm cursor-pointer text-text-primary">Vibrate (on supported devices)</label>
+                                <input type="checkbox" id="alertVibrate" class="h-4 w-4 sm:h-5 sm:w-5 text-accent-day rounded focus:ring-accent-day form-checkbox bg-black/30 border-border-color appearance-none checked:bg-accent-day checked:border-transparent transition-colors duration-200" role="switch" aria-checked="false">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <label for="alertPopup" class="text-xs sm:text-sm cursor-pointer text-text-primary">Show Pop-up Notification (requires browser permission)</label>
+                                <input type="checkbox" id="alertPopup" class="h-4 w-4 sm:h-5 sm:w-5 text-accent-day rounded focus:ring-accent-day form-checkbox bg-black/30 border-border-color appearance-none checked:bg-accent-day checked:border-transparent transition-colors duration-200" role="switch" aria-checked="false">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div>
+    </div>
+
+    <audio id="notificationAudio" src="https://ia801903.us.archive.org/23/items/warning-75933/warning-75933.mp3" preload="auto"></audio>
+
+    <script>
+        // --- Game Logic Constants ---
+        const REAL_TIME_PER_IN_GAME_HOUR = 18.75; // seconds
+        const CYCLE_DURATION_REAL_TIME = 24 * REAL_TIME_PER_IN_GAME_HOUR; // 450 seconds (7.5 minutes)
+        const DAYTIME_DURATION_REAL_TIME = 16 * REAL_TIME_PER_IN_GAME_HOUR; // 300 seconds (5 minutes)
+        const NIGHTTIME_DURATION_REAL_TIME = 8 * REAL_TIME_PER_IN_GAME_HOUR; // 150 seconds (2.5 minutes)
+
+        // --- UI Element References ---
+        const consoleDisplay = document.getElementById('consoleDisplay');
+        const inGameTimeElem = document.getElementById('inGameTime');
+        const cyclePhaseElem = document.getElementById('cyclePhase');
+        const timeRemainingElem = document.getElementById('timeRemaining');
+        const strategicReminderElem = document.getElementById('strategicReminder');
+        const statusIndicatorElem = document.getElementById('statusIndicator');
+        const settingsButton = document.getElementById('settingsButton');
+        const nextDayStartElem = document.getElementById('nextDayStart');
+        const nextNightStartElem = document.getElementById('nextNightStart');
+        const trainCabImageElem = document.getElementById('trainCabImage'); 
+
+        // Split Button & Dropdown References
+        const quickSyncMainButton = document.getElementById('quickSyncMainButton');
+        const quickSyncDropdownToggle = document.getElementById('quickSyncDropdownToggle');
+        const quickSyncDropdownMenu = document.getElementById('quickSyncDropdownMenu');
+        const configureButton = document.getElementById('configureButton');
+
+        // Settings Overlay Elements
+        const settingsOverlay = document.getElementById('settingsOverlay');
+        const closeSettingsButton = document.getElementById('closeSettingsButton');
+        const inGameSyncTimeInput = document.getElementById('inGameSyncTime'); 
+        const syncTimeButton = document.getElementById('syncTimeButton'); 
+
+        // Quick Sync Modal Elements
+        const quickSyncModal = document.getElementById('quickSyncModal');
+        const closeQuickSyncModalButton = document.getElementById('closeQuickSyncModalButton');
+        const quickSyncInGameTimeInput = document.getElementById('quickSyncInGameTime'); 
+        const quickSyncModalSyncButton = document.getElementById('quickSyncModalSyncButton'); 
+        const quickSyncMessage = document.getElementById('quickSyncMessage'); 
+
+        // Notification Settings Elements
+        const notifyDayStartToggle = document.getElementById('notifyDayStart');
+        const notifyNightStartToggle = document.getElementById('notifyNightStart');
+        const alertBeforeTimeInput = document.getElementById('alertBeforeTime');
+        const applyAlertTimeButton = document.getElementById('applyAlertTimeButton'); 
+        const alertTimeMessage = document.getElementById('alertTimeMessage'); 
+        const alertSoundToggle = document.getElementById('alertSound');
+        const alertVibrateToggle = document.getElementById('alertVibrate');
+        const alertPopupToggle = document.getElementById('alertPopup');
+        const testSoundButton = document.getElementById('testSoundButton');
+
+        // --- State Variables ---
+        let _startTime = new Date(); 
+
+        // To prevent repeated alerts for the same event
+        let dayStartAlertTriggered = false; 
+        let nightStartAlertTriggered = false; 
+        let dayEndAlertTriggered = false;   
+        let nightEndAlertTriggered = false; 
+
+        let currentPhaseIsDay = true; 
+        let audioUnlocked = false; 
+        let audioContext = null; // Declare AudioContext here
+
+        // --- Image URLs for Train Cab Visuals ---
+        const imageURLs = {
+            "1AM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/1AM.png",
+            "2AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/2AM.png",
+            "3AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/3AM.png",
+            "4AM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/4AM.png",
+            "5AM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/5AM.png",
+            "6AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/6AM.png",
+            "7AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/7AM.png",
+            "8AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/8AM.png",
+            "9AM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/9AM.png",
+            "10AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/10AM.png",
+            "11AM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/11AM.png",
+            "12AM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/12AM.png", // Midnight
+            "1PM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/1PM.png",
+            "2PM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/2PM.png",
+            "3PM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/3PM.png",
+            "4PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/4PM.png",
+            "5PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/5PM.png",
+            "6PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/6PM.png",
+            "7PM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/7PM.png",
+            "8PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/8PM.png",
+            "9PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/9PM.png",
+            "10PM": "https://ia601804.us.archive.org/4/items/7-pm_20250523/10PM.png",
+            "11PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/11PM.png",
+            "12PM": "https://ia801804.us.archive.org/4/items/7-pm_20250523/12PM.png" // Noon
+        };
+
+        // --- Helper Function to Format Numbers to Two Digits ---
+        const formatD2 = (num) => num.toString().padStart(2, '0');
+
+        // --- Helper Function to format seconds into TotalMinutes:Seconds (as per user's example) ---
+        function formatDuration(totalSeconds) {
+            if (totalSeconds < 0) totalSeconds = 0; // Ensure no negative display
+
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const seconds = Math.floor(totalSeconds % 60);
+
+            return `${formatD2(totalMinutes)}:${formatD2(seconds)}`;
+        }
+
+        // --- Notification Audio ---
+        const notificationSound = document.getElementById('notificationAudio'); 
+
+        // --- Function to attempt audio unlock (only activates context, does not play sound) ---
+        const unlockAudio = async () => {
+            if (!audioUnlocked) {
+                try {
+                    // Create AudioContext if it doesn't exist
+                    if (!audioContext) {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    // Attempt to resume context if it's suspended
+                    if (audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+                    // A minimal, silent play/pause might still be needed in some browsers
+                    // to fully 'unlock' the audio element itself.
+                    notificationSound.muted = true;
+                    notificationSound.play();
+                    notificationSound.pause();
+                    notificationSound.currentTime = 0;
+                    notificationSound.muted = false; // Reset to original mute state
+
+                    audioUnlocked = true;
+                    console.log("Audio successfully unlocked by user interaction.");
+                } catch (e) {
+                    console.error("Failed to unlock audio context:", e);
+                }
+            }
+        };
+
+        // --- Notification Function ---
+        async function triggerNotification(message, type) {
+            console.log(`[ALERT - ${type.toUpperCase()}] ${message}`); 
+
+            if (alertPopupToggle.checked) {
+                if (Notification.permission === 'granted') {
+                    new Notification('Dead Rails Timer', {
+                        body: message,
+                        icon: './image_6d9bd9.jpg' 
+                    });
+                } else if (Notification.permission !== 'denied') {
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                        new Notification('Dead Rails Timer', {
+                            body: message,
+                            icon: './image_6d9bd9.jpg'
+                        });
+                    }
+                }
+            }
+            if (alertSoundToggle.checked) {
+                if (audioUnlocked) { 
+                    console.log(`[SOUND PLAYED] Triggered by: ${type}`); 
+                    if (notificationSound.readyState >= 2) { 
+                        try {
+                            notificationSound.currentTime = 0; 
+                            await notificationSound.play();
+                            console.log("Sound played successfully.");
+                        } catch (e) {
+                            console.error("Error playing sound:", e);
+                        }
+                    } else {
+                        console.warn("Notification sound not ready to play. Current readyState:", notificationSound.readyState);
+                    }
+                } else {
+                    console.warn("Sound alert attempted but audio not unlocked by user interaction.");
+                }
+            }
+            if (alertVibrateToggle.checked && navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]); 
+            }
+        }
+
+        // --- Initialization Function ---
+        function initializeTracker() {
+            const savedStartTime = localStorage.getItem('deadRailsStartTime');
+            if (savedStartTime) {
+                _startTime = new Date(savedStartTime);
+                statusIndicatorElem.textContent = "SYNCED";
+                statusIndicatorElem.classList.remove('text-red-500', 'border-red-500');
+                statusIndicatorElem.classList.add('text-green-500', 'border-green-500');
+            } else {
+                const now = new Date();
+                const elapsedSinceEpochMs = now.getTime();
+                const positionInCurrentCycleMs = (elapsedSinceEpochMs % (CYCLE_DURATION_REAL_TIME * 1000));
+                _startTime = new Date(now.getTime() - positionInCurrentCycleMs);
+                localStorage.setItem('deadRailsStartTime', _startTime.toISOString()); 
+                statusIndicatorElem.textContent = "INITIAL SYNC";
+                statusIndicatorElem.classList.remove('text-red-500', 'border-red-500');
+                statusIndicatorElem.classList.add('text-yellow-500', 'border-yellow-500');
+            }
+
+            notifyDayStartToggle.checked = JSON.parse(localStorage.getItem('notifyDayStart')) ?? true;
+            notifyNightStartToggle.checked = JSON.parse(localStorage.getItem('notifyNightStart')) ?? true;
+            alertBeforeTimeInput.value = localStorage.getItem('alertBeforeTime') ?? 30; 
+            alertSoundToggle.checked = JSON.parse(localStorage.getItem('alertSound')) ?? true;
+            alertVibrateToggle.checked = JSON.parse(localStorage.getItem('alertVibrate')) ?? true;
+            alertPopupToggle.checked = JSON.parse(localStorage.getItem('alertPopup')) ?? true;
+
+            updateStrategicReminder(true); 
+            
+            requestAnimationFrame(updateTracker);
+
+            settingsButton.addEventListener('click', async () => {
+                await unlockAudio(); // Attempt unlock on interaction
+                settingsOverlay.classList.remove('hidden');
+                if (Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            });
+            closeSettingsButton.addEventListener('click', () => settingsOverlay.classList.add('hidden'));
+            
+            syncTimeButton.addEventListener('click', async () => {
+                await unlockAudio(); // Attempt unlock on interaction
+                handleSyncTime(inGameSyncTimeInput, syncMessage, settingsOverlay);
+            });
+
+            inGameSyncTimeInput.addEventListener('keydown', async (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); 
+                    await unlockAudio(); // Attempt unlock on interaction
+                    handleSyncTime(inGameSyncTimeInput, syncMessage, settingsOverlay);
+                }
+            });
+
+            quickSyncMainButton.addEventListener('click', async () => {
+                await unlockAudio(); // Attempt unlock on interaction
+                quickSyncModal.classList.remove('hidden'); 
+                quickSyncInGameTimeInput.value = '5 AM'; 
+                quickSyncInGameTimeInput.focus(); 
+            });
+
+            closeQuickSyncModalButton.addEventListener('click', () => quickSyncModal.classList.add('hidden'));
+
+            quickSyncModalSyncButton.addEventListener('click', async () => {
+                await unlockAudio(); // Attempt unlock on interaction
+                handleSyncTime(quickSyncInGameTimeInput, quickSyncMessage, quickSyncModal);
+            });
+
+            quickSyncInGameTimeInput.addEventListener('keydown', async (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); 
+                    await unlockAudio(); // Attempt unlock on interaction
+                    handleSyncTime(quickSyncInGameTimeInput, quickSyncMessage, quickSyncModal);
+                }
+            });
+
+            quickSyncDropdownToggle.addEventListener('click', (event) => {
+                event.stopPropagation(); 
+                quickSyncDropdownMenu.classList.toggle('hidden'); 
+            });
+
+            configureButton.addEventListener('click', async () => {
+                await unlockAudio(); // Attempt unlock on interaction
+                quickSyncDropdownMenu.classList.add('hidden'); 
+                settingsOverlay.classList.remove('hidden'); 
+                inGameSyncTimeInput.focus(); 
+            });
+
+            document.addEventListener('click', (event) => {
+                if (!quickSyncDropdownToggle.contains(event.target) && !quickSyncDropdownMenu.contains(event.target)) {
+                    quickSyncDropdownMenu.classList.add('hidden');
+                }
+            });
+
+            notifyDayStartToggle.addEventListener('change', () => localStorage.setItem('notifyDayStart', notifyDayStartToggle.checked));
+            notifyNightStartToggle.addEventListener('change', () => localStorage.setItem('notifyNightStart', notifyNightStartToggle.checked));
+            alertSoundToggle.addEventListener('change', () => localStorage.setItem('alertSound', alertSoundToggle.checked));
+            alertVibrateToggle.addEventListener('change', () => localStorage.setItem('alertVibrate', alertVibrateToggle.checked));
+            alertPopupToggle.addEventListener('change', () => localStorage.setItem('alertPopup', alertPopupToggle.checked));
+            
+            applyAlertTimeButton.addEventListener('click', () => {
+                localStorage.setItem('alertBeforeTime', alertBeforeTimeInput.value);
+                alertTimeMessage.textContent = "Applied!";
+                alertTimeMessage.classList.remove('text-red-400');
+                alertTimeMessage.classList.add('text-green-400');
+                setTimeout(() => { alertTimeMessage.textContent = ""; }, 2000); 
+            });
+
+            testSoundButton.addEventListener('click', async () => {
+                console.log("Test Sound Button Clicked.");
+                await unlockAudio(); // Ensure audio context is active
+                if (alertSoundToggle.checked) { // Only play if sound alerts are enabled
+                    triggerNotification("This is a test sound!", "Test");
+                } else {
+                    console.log("Sound alerts are disabled in settings.");
+                }
+            });
+        }
+
+        // --- Manual Sync Function ---
+        function handleSyncTime(inputElement, messageElement, overlayToClose) {
+            const input = inputElement.value.trim();
+            let hours, minutes;
+            let isValid = false;
+
+            const regex = /^(?:(\d{1,2})(?::(\d{2}))?)\s*(am|pm)?$/i;
+            const match = input.match(regex);
+
+            if (match) {
+                hours = parseInt(match[1]);
+                minutes = match[2] ? parseInt(match[2]) : 0; 
+                const ampm = match[3] ? match[3].toLowerCase() : '';
+
+                if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+                    isValid = false; 
+                } else {
+                    if (ampm === 'pm' && hours < 12) {
+                        hours += 12;
+                    } else if (ampm === 'am' && hours === 12) { 
+                        hours = 0;
+                    }
+                    isValid = true;
+                }
+            }
+
+            if (isValid) {
+                const now = new Date(); 
+                const totalInGameMinutes = hours * 60 + minutes;
+                let inGameMinutesSinceCycleStart = (totalInGameMinutes - (5 * 60) + (24 * 60)) % (24 * 60);
+                const realSecondsElapsedInCurrentCycle = (inGameMinutesSinceCycleStart / (24 * 60)) * CYCLE_DURATION_REAL_TIME;
+                _startTime = new Date(now.getTime() - (realSecondsElapsedInCurrentCycle * 1000)); 
+
+                localStorage.setItem('deadRailsStartTime', _startTime.toISOString());
+                messageElement.textContent = `Tracker synced to ${input} in-game time!`;
+                messageElement.classList.remove('text-red-400');
+                messageElement.classList.add('text-green-400');
+                inputElement.value = ''; 
+
+                statusIndicatorElem.textContent = "SYNCED";
+                statusIndicatorElem.classList.remove('text-red-500', 'border-red-500', 'text-yellow-500', 'border-yellow-500');
+                statusIndicatorElem.classList.add('text-green-500', 'border-green-500');
+
+                dayStartAlertTriggered = false;
+                nightStartAlertTriggered = false;
+                dayEndAlertTriggered = false;
+                nightEndAlertTriggered = false;
+
+                overlayToClose.classList.add('hidden'); 
+            } else {
+                messageElement.textContent = 'Invalid time format. Use HH:MM, HH AM/PM (e.g., 08:30, 4 PM, 9:00 AM).';
+                messageElement.classList.remove('text-green-400');
+                messageElement.classList.add('text-red-400');
+            }
+        }
+
+        // --- Main Update Loop ---
+        function updateTracker() {
+            const now = new Date();
+            let elapsedTimeInCurrentCycle = (now.getTime() - _startTime.getTime()) / 1000;
+            elapsedTimeInCurrentCycle = elapsedTimeInCurrentCycle % CYCLE_DURATION_REAL_TIME;
+
+            // --- Calculate In-Game Time ---
+            let inGameHoursElapsed = elapsedTimeInCurrentCycle / REAL_TIME_PER_IN_GAME_HOUR;
+            let currentInGameHour = Math.floor(inGameHoursElapsed) + 5; 
+            if (currentInGameHour >= 24) {
+                currentInGameHour -= 24; 
+            }
+            let inGameMinutesDecimal = (inGameHoursElapsed - Math.floor(inGameHoursElapsed)) * 60;
+            let currentInGameMinute = Math.floor(inGameMinutesDecimal);
+            let currentInGameSecond = Math.floor((inGameMinutesDecimal - Math.floor(inGameMinutesDecimal)) * 60);
+
+            let displayHour = currentInGameHour;
+            let ampm = 'AM';
+
+            if (displayHour === 0) { 
+                displayHour = 12;
+                ampm = 'AM';
+            } else if (displayHour === 12) { 
+                ampm = 'PM';
+            } else if (displayHour > 12) { 
+                displayHour -= 12;
+                ampm = 'PM';
+            }
+
+            inGameTimeElem.textContent = `${formatD2(displayHour)}:${formatD2(currentInGameMinute)}:${formatD2(currentInGameSecond)} ${ampm}`;
+            
+            // --- Update Train Cab Image ---
+            const trainCabImageName = `${displayHour}${ampm}`; 
+            trainCabImageElem.src = imageURLs[trainCabImageName] || ''; 
+
+
+            // --- Determine Phase (Day/Night) and Set UI Classes ---
+            let cyclePhase;
+            let secondsLeftInPhase; 
+            let phaseEmoji;
+            let isDaytime;
+
+            if (elapsedTimeInCurrentCycle < DAYTIME_DURATION_REAL_TIME) {
+                cyclePhase = "Daytime";
+                secondsLeftInPhase = DAYTIME_DURATION_REAL_TIME - elapsedTimeInCurrentCycle;
+                phaseEmoji = '☀️';
+                isDaytime = true;
+                consoleDisplay.classList.remove('bg-bg-inner-night');
+                consoleDisplay.classList.add('bg-bg-inner-day');
+                strategicReminderElem.classList.remove('text-accent-night', 'bg-reminder-bg-night', 'shadow-accent-night/40');
+                strategicReminderElem.classList.add('text-accent-day', 'bg-reminder-bg-day', 'shadow-accent-day/40');
+                cyclePhaseElem.classList.remove('text-accent-night', 'shadow-glow-night');
+                cyclePhaseElem.classList.add('text-accent-day', 'shadow-glow-day');
+            } else {
+                cyclePhase = "Nighttime";
+                secondsLeftInPhase = CYCLE_DURATION_REAL_TIME - elapsedTimeInCurrentCycle; 
+                phaseEmoji = '🌙';
+                isDaytime = false;
+                consoleDisplay.classList.remove('bg-bg-inner-day');
+                consoleDisplay.classList.add('bg-bg-inner-night');
+                strategicReminderElem.classList.remove('text-accent-day', 'bg-reminder-bg-day', 'shadow-accent-day/40');
+                strategicReminderElem.classList.add('text-accent-night', 'bg-reminder-bg-night', 'shadow-accent-night/40');
+                cyclePhaseElem.classList.remove('text-accent-day', 'shadow-glow-day');
+                cyclePhaseElem.classList.add('text-accent-night', 'shadow-glow-night');
+            }
+
+            if (isDaytime && !currentPhaseIsDay) { 
+                nightStartAlertTriggered = false; 
+                dayStartAlertTriggered = false;   
+                nightEndAlertTriggered = false;   
+            } else if (!isDaytime && currentPhaseIsDay) { 
+                dayStartAlertTriggered = false;   
+                nightStartAlertTriggered = false; 
+                dayEndAlertTriggered = false;     
+            }
+            currentPhaseIsDay = isDaytime; 
+
+            cyclePhaseElem.textContent = `${cyclePhase} ${phaseEmoji}`;
+
+            const remainingMinutes = Math.floor(secondsLeftInPhase / 60);
+            const remainingSeconds = Math.floor(secondsLeftInPhase % 60);
+            timeRemainingElem.textContent = `${formatD2(remainingMinutes)}:${formatD2(remainingSeconds)}`;
+            
+            // --- Update Next Cycle Starts (Formatted) ---
+            let secondsUntilNextDay;
+            let secondsUntilNextNight;
+
+            const currentTotalInGameMinutes = currentInGameHour * 60 + currentInGameMinute;
+            if (currentTotalInGameMinutes < (5 * 60)) { 
+                secondsUntilNextDay = ((5 * 60) - currentTotalInGameMinutes) * REAL_TIME_PER_IN_GAME_HOUR;
+            } else { 
+                secondsUntilNextDay = ((24 * 60) - currentTotalInGameMinutes + (5 * 60)) * REAL_TIME_PER_IN_GAME_HOUR;
+            }
+
+            if (currentTotalInGameMinutes < (21 * 60)) { 
+                secondsUntilNextNight = ((21 * 60) - currentTotalInGameMinutes) * REAL_TIME_PER_IN_GAME_HOUR;
+            } else { 
+                secondsUntilNextNight = ((24 * 60) - currentTotalInGameMinutes + (21 * 60)) * REAL_TIME_PER_IN_GAME_HOUR;
+            }
+
+            nextDayStartElem.textContent = `Next Day: 05:00 AM (in ${formatDuration(secondsUntilNextDay)})`;
+            nextNightStartElem.textContent = `Next Night: 09:00 PM (in ${formatDuration(secondsUntilNextNight)})`;
+
+            // --- Notification Triggering Logic ---
+            const alertThreshold = parseInt(alertBeforeTimeInput.value);
+
+            if (notifyDayStartToggle.checked && secondsUntilNextDay <= alertThreshold && !dayStartAlertTriggered) {
+                triggerNotification('Day is approaching! (5:00 AM)', 'Day Start');
+                dayStartAlertTriggered = true;
+            }
+
+            if (notifyNightStartToggle.checked && secondsUntilNextNight <= alertThreshold && !nightStartAlertTriggered) {
+                triggerNotification('Night is approaching! (9:00 PM)', 'Night Start');
+                nightStartAlertTriggered = true;
+            }
+
+            if (alertSoundToggle.checked) { 
+                if (isDaytime && secondsLeftInPhase <= alertThreshold && !dayEndAlertTriggered) {
+                    triggerNotification(`Day ending in ${alertThreshold} seconds!`, 'Day End');
+                    dayEndAlertTriggered = true;
+                } else if (!isDaytime && secondsLeftInPhase <= alertThreshold && !nightEndAlertTriggered) {
+                    triggerNotification(`Night ending in ${alertThreshold} seconds!`, 'Night End');
+                    nightEndAlertTriggered = true; 
+                }
+            }
+
+            updateStrategicReminder(isDaytime);
+
+            requestAnimationFrame(updateTracker);
+        }
+
+ // --- Strategic Reminder Logic ---
+function updateStrategicReminder(isDay) {
+    let reminderText = "";
+    if (isDay) {
+        reminderText = "DAY: Loot houses (10–30km), stockpile fuel, and fortify your train. Prioritize acquiring sheet metal and barbed wire for defenses.";
+    } else {
+        reminderText = "NIGHT: Stay inside your fortified train. Use barbed wire and sheet metal to block entrances. Avoid stopping during Blood Moons due to increased vampire activity.";
+    }
+    strategicReminderElem.textContent = reminderText;
+}
+ 
+        document.addEventListener('DOMContentLoaded', initializeTracker);
+    </script>
+</body>
+</html>
