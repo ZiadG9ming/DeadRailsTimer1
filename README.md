@@ -1,5 +1,4 @@
 # 🚂 Dead Rails Tracker
- yes i use ai to type ts to lazy
  ![image](https://github.com/user-attachments/assets/446e67b6-0c8c-4881-a00d-cdfcf8701542)
 ![image](https://github.com/user-attachments/assets/0cd6696f-34e3-4cc6-86da-f1408ffed87e)
 
@@ -10,7 +9,8 @@
 
 
 # 🚂 Dead Rails Tracker
-
+ yes i use ai to type ts to lazy
+ 
 **Dead Rails Tracker** is a real-time browser-based tool that helps players survive more efficiently by syncing with the in-game time and alerting them to important day/night transitions and strategic opportunities.
 
 ## 🌟 Features
